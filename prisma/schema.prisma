@@ -1,0 +1,56 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  trackedEvents TrackedEvent[]
+}
+
+model TrackedEvent {
+  id            String        @id @default(cuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  keyword       String
+  description   String?
+  eventDate     DateTime      @default(now())
+  endDate       DateTime      @default(now())
+  startSeverity Int           @default(1)
+  endSeverity   Int           @default(1)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  impacts       DailyImpact[]
+}
+
+model DailyImpact {
+  id             String       @id @default(cuid())
+  trackedEventId String
+  trackedEvent   TrackedEvent @relation(fields: [trackedEventId], references: [id], onDelete: Cascade)
+  date           DateTime // The date this impact was calculated for
+  severity       Int // 1-10 scale
+  explanation    String // LLM's justification
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  newsItems      NewsItem[]
+}
+
+model NewsItem {
+  id            String      @id @default(cuid())
+  dailyImpactId String
+  dailyImpact   DailyImpact @relation(fields: [dailyImpactId], references: [id], onDelete: Cascade)
+  title         String
+  url           String
+  source        String
+  createdAt     DateTime    @default(now())
+}
