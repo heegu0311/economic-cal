@@ -262,13 +262,20 @@ export default function EventManager() {
                             style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', cursor: 'pointer' }}
                             onClick={() => handleEdit(ev)}
                         >
+                            <div>
+                                <div style={{ fontWeight: 600, color: 'var(--accent-primary)', marginBottom: '4px' }}>{ev.keyword}</div>
+                                {ev.description && <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>{ev.description}</div>}
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                    {formattedDate} to {formattedEndDate} | Trend: {ev.startSeverity}&rarr;{ev.endSeverity}
+                                </div>
+                            </div>
                             <button
                                 onClick={(e) => { e.stopPropagation(); handleDelete(ev.id); }}
                                 style={{
                                     position: 'absolute',
-                                    top: '8px',
-                                    right: '10px',
-                                    padding: '2px 8px',
+                                    top: '18px',
+                                    right: '18px',
+                                    padding: '0px 8px',
                                     color: 'var(--impact-5)',
                                     opacity: 0.6,
                                     fontSize: '0.75rem',
@@ -283,11 +290,6 @@ export default function EventManager() {
                             >
                                 ✕ Remove
                             </button>
-                            <div style={{ fontWeight: 600, color: 'var(--accent-primary)', marginBottom: '4px' }}>{ev.keyword}</div>
-                            {ev.description && <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>{ev.description}</div>}
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                                {formattedDate} to {formattedEndDate} | Trend: {ev.startSeverity}&rarr;{ev.endSeverity}
-                            </div>
                         </div>
                     );
                 })}
