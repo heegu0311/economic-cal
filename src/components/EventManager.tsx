@@ -262,21 +262,32 @@ export default function EventManager() {
                             style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', cursor: 'pointer' }}
                             onClick={() => handleEdit(ev)}
                         >
-                            <div>
-                                <div style={{ fontWeight: 600, color: 'var(--accent-primary)', marginBottom: '4px' }}>{ev.keyword}</div>
-                                {ev.description && <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>{ev.description}</div>}
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                                    {formattedDate} to {formattedEndDate} | Trend: {ev.startSeverity}&rarr;{ev.endSeverity}
-                                </div>
-                            </div>
                             <button
                                 onClick={(e) => { e.stopPropagation(); handleDelete(ev.id); }}
-                                style={{ padding: '8px', color: 'var(--impact-5)', opacity: 0.7, fontSize: '0.9rem', cursor: 'pointer', zIndex: 2, position: 'relative' }}
-                                onMouseOver={(e) => e.currentTarget.style.opacity = '1'}
-                                onMouseOut={(e) => e.currentTarget.style.opacity = '0.7'}
+                                style={{
+                                    position: 'absolute',
+                                    top: '8px',
+                                    right: '10px',
+                                    padding: '2px 8px',
+                                    color: 'var(--impact-5)',
+                                    opacity: 0.6,
+                                    fontSize: '0.75rem',
+                                    cursor: 'pointer',
+                                    zIndex: 2,
+                                    border: '1px solid rgba(139,92,246,0.3)',
+                                    borderRadius: '8px',
+                                    lineHeight: 1.5,
+                                }}
+                                onMouseOver={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'rgba(139,92,246,0.15)'; }}
+                                onMouseOut={(e) => { e.currentTarget.style.opacity = '0.6'; e.currentTarget.style.background = 'transparent'; }}
                             >
-                                Remove
+                                ✕ Remove
                             </button>
+                            <div style={{ fontWeight: 600, color: 'var(--accent-primary)', marginBottom: '4px' }}>{ev.keyword}</div>
+                            {ev.description && <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>{ev.description}</div>}
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                {formattedDate} to {formattedEndDate} | Trend: {ev.startSeverity}&rarr;{ev.endSeverity}
+                            </div>
                         </div>
                     );
                 })}
