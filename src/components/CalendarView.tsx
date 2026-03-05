@@ -232,12 +232,12 @@ export default function CalendarView() {
                                 {monthName} {monthData.year}
                             </h3>
                             {/* Days of Week Header */}
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '12px', marginBottom: '12px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem', fontWeight: 600 }}>
+                            <div className="calendar-grid-header">
                                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d}>{d}</div>)}
                             </div>
 
                             {/* Calendar Grid */}
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '12px' }}>
+                            <div className="calendar-grid">
                                 {days.map((day, idx) => {
                                     if (day === null) return <div key={`empty-${idx}`} />;
 

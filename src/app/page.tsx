@@ -4,7 +4,7 @@ import RiskChart from '@/components/RiskChart';
 
 export default function Home() {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) 2fr', gap: '32px', paddingBottom: '64px' }}>
+    <div className="main-grid">
 
       {/* Left Column: Management */}
       <div>

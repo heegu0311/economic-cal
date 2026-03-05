@@ -7,23 +7,35 @@
   --bg-surface-hover: #1e242c;
   --text-primary: #f0f4f8;
   --text-secondary: #a0aec0;
-  
+
   /* Accent Colors (Neon Tech Feel) */
-  --accent-primary: #3b82f6; /* Blue */
-  --accent-secondary: #8b5cf6; /* Purple */
+  --accent-primary: #3b82f6;
+  /* Blue */
+  --accent-secondary: #8b5cf6;
+  /* Purple */
   --accent-glow: rgba(59, 130, 246, 0.4);
-  
+
   /* Impact Severity Colors (1-10 Scale) */
-  --impact-1: #10b981; /* Level 1: Emerald Green */
-  --impact-2: #059669; /* Level 2: Green */
-  --impact-3: #0ea5e9; /* Level 3: Light Blue */
-  --impact-4: #3b82f6; /* Level 4: Blue */
-  --impact-5: #6366f1; /* Level 5: Indigo */
-  --impact-6: #8b5cf6; /* Level 6: Purple */
-  --impact-7: #d946ef; /* Level 7: Fuchsia */
-  --impact-8: #f59e0b; /* Level 8: Amber */
-  --impact-9: #f97316; /* Level 9: Orange */
-  --impact-10: #ef4444; /* Level 10: Red */
+  --impact-1: #10b981;
+  /* Level 1: Emerald Green */
+  --impact-2: #059669;
+  /* Level 2: Green */
+  --impact-3: #0ea5e9;
+  /* Level 3: Light Blue */
+  --impact-4: #3b82f6;
+  /* Level 4: Blue */
+  --impact-5: #6366f1;
+  /* Level 5: Indigo */
+  --impact-6: #8b5cf6;
+  /* Level 6: Purple */
+  --impact-7: #d946ef;
+  /* Level 7: Fuchsia */
+  --impact-8: #f59e0b;
+  /* Level 8: Amber */
+  --impact-9: #f97316;
+  /* Level 9: Orange */
+  --impact-10: #ef4444;
+  /* Level 10: Red */
 
   /* Borders & Shadows */
   --border-color: rgba(255, 255, 255, 0.08);
@@ -93,7 +105,12 @@ body::after {
 }
 
 /* Typography Base */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: -0.02em;
@@ -103,6 +120,7 @@ h1 {
   font-size: clamp(2.5rem, 5vw, 4rem);
   background: linear-gradient(135deg, #fff 0%, #a0aec0 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
@@ -114,13 +132,16 @@ h2 {
 ::-webkit-scrollbar {
   width: 8px;
 }
+
 ::-webkit-scrollbar-track {
   background: var(--bg-color);
 }
+
 ::-webkit-scrollbar-thumb {
   background: var(--bg-surface-hover);
   border-radius: 4px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: var(--accent-primary);
 }
@@ -189,10 +210,66 @@ button {
 
 /* Animations */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .animate-fade-in {
   animation: fadeIn 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+/* Responsive Layout Utilities */
+.main-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) 2fr;
+  gap: 32px;
+  padding-bottom: 64px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.calendar-grid-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .calendar-grid-header,
+  .calendar-grid {
+    gap: 4px;
+    font-size: 0.75rem;
+  }
 }
