@@ -54,3 +54,12 @@ model NewsItem {
   source        String
   createdAt     DateTime    @default(now())
 }
+
+model EconomicTheory {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

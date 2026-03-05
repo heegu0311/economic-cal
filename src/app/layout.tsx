@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import EconomicTheoriesSheet from '@/components/EconomicTheoriesSheet';
 
 export const metadata: Metadata = {
   title: 'Expectation - Stock Market Insight',
@@ -20,6 +21,7 @@ export default function RootLayout({
               <span style={{ color: 'var(--accent-primary)' }}>✦</span>
               Expectation
             </div>
+            <EconomicTheoriesSheet />
           </nav>
           {children}
         </main>

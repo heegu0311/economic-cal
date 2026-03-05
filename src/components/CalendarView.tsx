@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 type TrackedEvent = {
     id: string;
@@ -33,16 +33,20 @@ function generateCalendarDays(year: number, month: number) {
 }
 
 export default function CalendarView() {
-    // Current viewed month (defaults to today)
+    // Current viewed starting month
     const [currentDate, setCurrentDate] = useState(() => {
         const d = new Date();
         return { year: d.getFullYear(), month: d.getMonth() };
     });
 
-    const days = generateCalendarDays(currentDate.year, currentDate.month);
-    const [selectedDay, setSelectedDay] = useState<number | null>(null);
+    const [selectedDateStr, setSelectedDateStr] = useState<string | null>(null);
     const [events, setEvents] = useState<TrackedEvent[]>([]);
     const [draftRange, setDraftRange] = useState<{ startDate: string, endDate: string, step: number } | null>(null);
+
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const scrollAccumulator = useRef(0);
+    const lastScrollTime = useRef(Date.now());
+    const isThrottled = useRef(false);
 
     const fetchEvents = async () => {
         try {
@@ -57,22 +61,82 @@ export default function CalendarView() {
     };
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/rules-of-hooks, react-hooks/exhaustive-deps
         fetchEvents();
         const handleDraftDate = (e: Event) => {
             const ce = e as CustomEvent;
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setDraftRange(ce.detail);
         };
         // Listen for updates from EventManager
         window.addEventListener('eventsUpdated', fetchEvents);
         window.addEventListener('draftDateChanged', handleDraftDate);
+
+        let touchStartY = 0;
+
+        const handleScrollAction = (deltaY: number) => {
+            if (isThrottled.current) return;
+
+            const now = Date.now();
+            if (now - lastScrollTime.current > 300) {
+                scrollAccumulator.current = 0;
+            }
+            lastScrollTime.current = now;
+
+            scrollAccumulator.current += deltaY;
+            const threshold = 150; // threshold stringency 
+
+            if (scrollAccumulator.current > threshold) {
+                setCurrentDate(prev => prev.month === 11 ? { year: prev.year + 1, month: 0 } : { ...prev, month: prev.month + 1 });
+                scrollAccumulator.current = 0;
+                isThrottled.current = true;
+                setTimeout(() => { isThrottled.current = false; }, 600);
+            } else if (scrollAccumulator.current < -threshold) {
+                setCurrentDate(prev => prev.month === 0 ? { year: prev.year - 1, month: 11 } : { ...prev, month: prev.month - 1 });
+                scrollAccumulator.current = 0;
+                isThrottled.current = true;
+                setTimeout(() => { isThrottled.current = false; }, 600);
+            }
+        };
+
+        const handleWheel = (e: WheelEvent) => {
+            e.preventDefault();
+            handleScrollAction(e.deltaY);
+        };
+
+        const handleTouchStart = (e: TouchEvent) => {
+            touchStartY = e.touches[0].clientY;
+            scrollAccumulator.current = 0;
+        };
+
+        const handleTouchMove = (e: TouchEvent) => {
+            e.preventDefault();
+            const currentY = e.touches[0].clientY;
+            const deltaY = touchStartY - currentY; // positive = swipe up = scroll down
+            touchStartY = currentY;
+            handleScrollAction(deltaY);
+        };
+
+        const container = scrollContainerRef.current;
+        if (container) {
+            container.addEventListener('wheel', handleWheel, { passive: false });
+            container.addEventListener('touchstart', handleTouchStart, { passive: false });
+            container.addEventListener('touchmove', handleTouchMove, { passive: false });
+        }
+
         return () => {
             window.removeEventListener('eventsUpdated', fetchEvents);
             window.removeEventListener('draftDateChanged', handleDraftDate);
+            if (container) {
+                container.removeEventListener('wheel', handleWheel);
+                container.removeEventListener('touchstart', handleTouchStart);
+                container.removeEventListener('touchmove', handleTouchMove);
+            }
         };
     }, []);
 
-    // 1. Calculate daily impacts mapping
-    const dailyMap: Record<number, DailyImpact[]> = {};
+    // 1. Calculate events and severity per absolute date string (YYYY-MM-DD)
+    const eventsByDate: Record<string, DailyImpact[]> = {};
 
     events.forEach(event => {
         const evTimestamp = new Date(event.eventDate);
@@ -90,64 +154,47 @@ export default function CalendarView() {
         const edDate = edTimestamp.getUTCDate();
         const localEvEndDate = new Date(edYear, edMonth, edDate);
 
-        // For simplicity, we calculate the absolute offset days from the 1st of the current month
-        const firstOfMonth = new Date(currentDate.year, currentDate.month, 1);
-
-        // Difference in days between event start and 1st of current month
-        const diffTime = localEvStartDate.getTime() - firstOfMonth.getTime();
-        // Use Math.round to account for daylight saving boundaries, since both dates are midnight
-        const startOffsetDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 because day 1 is offset 0
-
         // Calculate duration days dynamically
         const durationDiffTime = localEvEndDate.getTime() - localEvStartDate.getTime();
         const durationDays = Math.max(1, Math.round(durationDiffTime / (1000 * 60 * 60 * 24)) + 1);
 
         for (let i = 0; i < durationDays; i++) {
-            const currentCalendarDay = startOffsetDays + i;
+            const currentDay = new Date(localEvStartDate.getFullYear(), localEvStartDate.getMonth(), localEvStartDate.getDate() + i);
+            const dateStr = `${currentDay.getFullYear()}-${String(currentDay.getMonth() + 1).padStart(2, '0')}-${String(currentDay.getDate()).padStart(2, '0')}`;
 
-            // Only aggregate if this day is actually in the current viewed month
-            if (currentCalendarDay >= 1 && currentCalendarDay <= 31) {
-                let severity = event.startSeverity;
-                if (durationDays > 1) {
-                    const ratio = i / (durationDays - 1);
-                    severity = event.startSeverity + ((event.endSeverity - event.startSeverity) * ratio);
-                }
-
-                if (!dailyMap[currentCalendarDay]) dailyMap[currentCalendarDay] = [];
-                // Round severity for visual and summation purposes to 1 decimal
-                dailyMap[currentCalendarDay].push({ event, severity: Number(severity.toFixed(1)) });
+            let severity = event.startSeverity;
+            if (durationDays > 1) {
+                const ratio = i / (durationDays - 1);
+                severity = event.startSeverity + ((event.endSeverity - event.startSeverity) * ratio);
             }
+
+            if (!eventsByDate[dateStr]) eventsByDate[dateStr] = [];
+            eventsByDate[dateStr].push({ event, severity: Number(severity.toFixed(1)) });
         }
     });
 
-    // 2. Aggregate total risk scores per day
-    let highestMonthRisk = 0;
-    const aggregatedRisks: Record<number, number> = {};
+    const aggregatedRisks: Record<string, number> = {};
+    Object.keys(eventsByDate).forEach(dateStr => {
+        const totalScore = eventsByDate[dateStr].reduce((sum, item) => sum + item.severity, 0);
+        aggregatedRisks[dateStr] = Number(totalScore.toFixed(1));
+    });
 
-    for (let day = 1; day <= 31; day++) {
-        if (dailyMap[day]) {
-            const totalScore = dailyMap[day].reduce((sum, item) => sum + item.severity, 0);
-            aggregatedRisks[day] = Number(totalScore.toFixed(1));
-            if (totalScore > highestMonthRisk) {
-                highestMonthRisk = totalScore;
-            }
-        } else {
-            aggregatedRisks[day] = 0;
-        }
-    }
-
-    // Dynamic color scale based on the aggregated score. 
-    // Uses the 1-10 CSS variables defined earlier. If score > 10, it maxes at 10.
     const getRiskColor = (totalScore: number) => {
         if (totalScore <= 0) return 'transparent';
         const tier = Math.min(10, Math.max(1, Math.ceil(totalScore)));
         return `var(--impact-${tier})`;
     };
 
-    const monthName = new Date(currentDate.year, currentDate.month).toLocaleString('default', { month: 'long' });
+    // Calculate months to show (Current and Next Month)
+    const monthsToRender = [
+        { year: currentDate.year, month: currentDate.month },
+        currentDate.month === 11 ? { year: currentDate.year + 1, month: 0 } : { year: currentDate.year, month: currentDate.month + 1 }
+    ];
+
+    const firstMonthName = new Date(currentDate.year, currentDate.month).toLocaleString('default', { month: 'long' });
 
     return (
-        <div className="glass-panel" style={{ padding: '32px' }}>
+        <div ref={scrollContainerRef} className="glass-panel" style={{ padding: '32px' }}>
             <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h2>Total Risk Calendar</h2>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -155,7 +202,7 @@ export default function CalendarView() {
                         onClick={() => setCurrentDate(prev => prev.month === 0 ? { year: prev.year - 1, month: 11 } : { ...prev, month: prev.month - 1 })}
                         style={{ color: 'var(--text-secondary)', padding: '4px 8px' }}
                     >&larr;</button>
-                    <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>{monthName} {currentDate.year}</span>
+                    <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>{firstMonthName} {currentDate.year}</span>
                     <button
                         onClick={() => setCurrentDate(prev => prev.month === 11 ? { year: prev.year + 1, month: 0 } : { ...prev, month: prev.month + 1 })}
                         style={{ color: 'var(--text-secondary)', padding: '4px 8px' }}
@@ -163,107 +210,130 @@ export default function CalendarView() {
                 </div>
             </div>
 
-            {/* Days of Week Header */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '12px', marginBottom: '12px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem', fontWeight: 600 }}>
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d}>{d}</div>)}
-            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
+                {monthsToRender.map((monthData, monthIndex) => {
+                    const days = generateCalendarDays(monthData.year, monthData.month);
+                    const monthName = new Date(monthData.year, monthData.month).toLocaleString('default', { month: 'long' });
 
-            {/* Calendar Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '12px' }}>
-                {days.map((day, idx) => {
-                    if (day === null) return <div key={`empty-${idx}`} />;
-
-                    const totalRisk = aggregatedRisks[day];
-                    const isSelected = selectedDay === day;
-                    const impacts = dailyMap[day] || [];
-
-                    // Highlight logic: Days that are within 10% of the highest risk of the month get extra glow
-                    const isPeakRisk = highestMonthRisk > 0 && totalRisk >= highestMonthRisk * 0.9;
-                    const tileColor = getRiskColor(totalRisk);
-
-                    const currentCalendarDateStr = `${currentDate.year}-${String(currentDate.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                    let isInDraftRange = false;
-                    let isDraftStart = false;
-                    let isDraftEnd = false;
-                    let isDrafting = false;
-
-                    if (draftRange) {
-                        if (currentCalendarDateStr >= draftRange.startDate && currentCalendarDateStr <= draftRange.endDate) {
-                            isInDraftRange = true;
+                    // Highest risk specifically for this month to calculate peak dates local to the month
+                    let highestMonthRisk = 0;
+                    days.forEach(day => {
+                        if (day) {
+                            const dateStr = `${monthData.year}-${String(monthData.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                            if (aggregatedRisks[dateStr] > highestMonthRisk) {
+                                highestMonthRisk = aggregatedRisks[dateStr];
+                            }
                         }
-                        if (currentCalendarDateStr === draftRange.startDate) isDraftStart = true;
-                        if (currentCalendarDateStr === draftRange.endDate) isDraftEnd = true;
-                        if (draftRange.step === 1) isDrafting = true;
-                    }
-
-                    const isPulsing = isDrafting && isDraftStart && isDraftEnd;
+                    });
 
                     return (
-                        <div
-                            key={day}
-                            onClick={() => {
-                                setSelectedDay(day);
-                                const selectedDateStr = `${currentDate.year}-${String(currentDate.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                                window.dispatchEvent(new CustomEvent('calendarDateSelected', { detail: { date: selectedDateStr } }));
-                            }}
-                            style={{
-                                aspectRatio: '1',
-                                borderRadius: '12px',
-                                background: isDraftStart || isDraftEnd ? 'rgba(255,255,255,0.2)' : (isInDraftRange ? 'rgba(255,255,255,0.08)' : (totalRisk > 0 ? `${tileColor}22` : 'rgba(255,255,255,0.02)')),
-                                border: `1px solid ${(isDraftStart || isDraftEnd) ? 'var(--accent-primary)' : (isInDraftRange ? 'rgba(255,255,255,0.3)' : (totalRisk > 0 ? tileColor : 'var(--border-color)'))}`,
-                                display: 'flex',
-                                flexDirection: 'column',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                padding: '8px 4px',
-                                cursor: 'pointer',
-                                transition: 'var(--trans-fast)',
-                                transform: isSelected ? 'scale(1.05)' : (isPeakRisk ? 'scale(1.02)' : 'scale(1)'),
-                                boxShadow: isPulsing ? '0 0 15px var(--accent-primary)' : ((isSelected || isPeakRisk) && totalRisk > 0 ? `0 0 ${isPeakRisk ? '20px' : '10px'} ${tileColor}${isPeakRisk ? 'aa' : '66'}` : (isInDraftRange ? '0 0 5px rgba(255,255,255,0.1)' : 'none')),
-                                position: 'relative',
-                                overflow: 'hidden'
-                            }}
-                            onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                            onMouseOut={(e) => e.currentTarget.style.transform = isSelected ? 'scale(1.05)' : (isPeakRisk ? 'scale(1.02)' : 'scale(1)')}
-                        >
-                            <div style={{ fontSize: '1.25rem', fontWeight: isPeakRisk ? 800 : 600, color: totalRisk > 0 ? tileColor : 'var(--text-primary)', zIndex: 1 }}>
-                                {day}
+                        <div key={`${monthData.year}-${monthData.month}`}>
+                            <h3 style={{ marginBottom: '16px', color: 'var(--text-primary)', textAlign: 'center' }}>
+                                {monthName} {monthData.year}
+                            </h3>
+                            {/* Days of Week Header */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '12px', marginBottom: '12px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem', fontWeight: 600 }}>
+                                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d}>{d}</div>)}
                             </div>
 
-                            {/* Visual impact indicator for daily events */}
-                            {totalRisk > 0 && (
-                                <div style={{ zIndex: 1, fontSize: '0.8rem', fontWeight: 700, color: tileColor, textAlign: 'center' }}>
-                                    {totalRisk}
-                                    <div style={{ display: 'flex', gap: '2px', width: '100%', justifyContent: 'center', marginTop: '2px' }}>
-                                        {impacts.slice(0, 4).map((_, i) => (
-                                            <div key={i} style={{ width: '4px', height: '4px', borderRadius: '50%', background: tileColor }} />
-                                        ))}
-                                        {impacts.length > 4 && <span style={{ fontSize: '0.6rem', lineHeight: '4px' }}>+</span>}
-                                    </div>
-                                </div>
-                            )}
+                            {/* Calendar Grid */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '12px' }}>
+                                {days.map((day, idx) => {
+                                    if (day === null) return <div key={`empty-${idx}`} />;
 
-                            {totalRisk > 0 && (
-                                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: `linear-gradient(to top, ${tileColor}44, transparent)`, zIndex: 0 }} />
-                            )}
+                                    const dateStr = `${monthData.year}-${String(monthData.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                                    const totalRisk = aggregatedRisks[dateStr] || 0;
+                                    const isSelected = selectedDateStr === dateStr;
+                                    const impacts = eventsByDate[dateStr] || [];
+
+                                    const isPeakRisk = highestMonthRisk > 0 && totalRisk >= highestMonthRisk * 0.9;
+                                    const tileColor = getRiskColor(totalRisk);
+
+                                    let isInDraftRange = false;
+                                    let isDraftStart = false;
+                                    let isDraftEnd = false;
+                                    let isDrafting = false;
+
+                                    if (draftRange) {
+                                        if (dateStr >= draftRange.startDate && dateStr <= draftRange.endDate) {
+                                            isInDraftRange = true;
+                                        }
+                                        if (dateStr === draftRange.startDate) isDraftStart = true;
+                                        if (dateStr === draftRange.endDate) isDraftEnd = true;
+                                        if (draftRange.step === 1) isDrafting = true;
+                                    }
+
+                                    const isPulsing = isDrafting && isDraftStart && isDraftEnd;
+
+                                    return (
+                                        <div
+                                            key={day}
+                                            onClick={() => {
+                                                setSelectedDateStr(dateStr);
+                                                window.dispatchEvent(new CustomEvent('calendarDateSelected', { detail: { date: dateStr } }));
+                                            }}
+                                            style={{
+                                                aspectRatio: '1',
+                                                borderRadius: '12px',
+                                                background: isDraftStart || isDraftEnd ? 'rgba(255,255,255,0.2)' : (isInDraftRange ? 'rgba(255,255,255,0.08)' : (totalRisk > 0 ? `${tileColor}22` : 'rgba(255,255,255,0.02)')),
+                                                border: `1px solid ${(isDraftStart || isDraftEnd) ? 'var(--accent-primary)' : (isInDraftRange ? 'rgba(255,255,255,0.3)' : (totalRisk > 0 ? tileColor : 'var(--border-color)'))}`,
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                padding: '8px 4px',
+                                                cursor: 'pointer',
+                                                transition: 'var(--trans-fast)',
+                                                transform: isSelected ? 'scale(1.05)' : (isPeakRisk ? 'scale(1.02)' : 'scale(1)'),
+                                                boxShadow: isPulsing ? '0 0 15px var(--accent-primary)' : ((isSelected || isPeakRisk) && totalRisk > 0 ? `0 0 ${isPeakRisk ? '20px' : '10px'} ${tileColor}${isPeakRisk ? 'aa' : '66'}` : (isInDraftRange ? '0 0 5px rgba(255,255,255,0.1)' : 'none')),
+                                                position: 'relative',
+                                                overflow: 'hidden'
+                                            }}
+                                            onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                                            onMouseOut={(e) => e.currentTarget.style.transform = isSelected ? 'scale(1.05)' : (isPeakRisk ? 'scale(1.02)' : 'scale(1)')}
+                                        >
+                                            <div style={{ fontSize: '1.25rem', fontWeight: isPeakRisk ? 800 : 600, color: totalRisk > 0 ? tileColor : 'var(--text-primary)', zIndex: 1 }}>
+                                                {day}
+                                            </div>
+
+                                            {/* Visual impact indicator for daily events */}
+                                            {totalRisk > 0 && (
+                                                <div style={{ zIndex: 1, fontSize: '0.8rem', fontWeight: 700, color: tileColor, textAlign: 'center' }}>
+                                                    {totalRisk}
+                                                    <div style={{ display: 'flex', gap: '2px', width: '100%', justifyContent: 'center', marginTop: '2px' }}>
+                                                        {impacts.slice(0, 4).map((_, i) => (
+                                                            <div key={i} style={{ width: '4px', height: '4px', borderRadius: '50%', background: tileColor }} />
+                                                        ))}
+                                                        {impacts.length > 4 && <span style={{ fontSize: '0.6rem', lineHeight: '4px' }}>+</span>}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {totalRisk > 0 && (
+                                                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: `linear-gradient(to top, ${tileColor}44, transparent)`, zIndex: 0 }} />
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     );
                 })}
             </div>
 
             {/* Detail Panel */}
-            {selectedDay && dailyMap[selectedDay] && dailyMap[selectedDay].length > 0 && (
+            {selectedDateStr && eventsByDate[selectedDateStr] && eventsByDate[selectedDateStr].length > 0 && (
                 <div className="animate-fade-in" style={{ marginTop: '32px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <h3>
-                            Risk Breakdown: {monthName} {selectedDay}, {currentDate.year}
+                            Risk Breakdown: {new Date(selectedDateStr).toLocaleDateString('default', { year: 'numeric', month: 'long', day: 'numeric' })}
                         </h3>
-                        <div style={{ fontSize: '1.2rem', fontWeight: 800, color: getRiskColor(aggregatedRisks[selectedDay]) }}>
-                            Total Risk: {aggregatedRisks[selectedDay]}
+                        <div style={{ fontSize: '1.2rem', fontWeight: 800, color: getRiskColor(aggregatedRisks[selectedDateStr]) }}>
+                            Total Risk: {aggregatedRisks[selectedDateStr]}
                         </div>
                     </div>
 
-                    {dailyMap[selectedDay].map((impact, i) => (
+                    {eventsByDate[selectedDateStr].map((impact, i) => (
                         <div key={i} style={{ padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', borderLeft: `4px solid ${getRiskColor(impact.severity)}` }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                                 <h4 style={{ color: getRiskColor(impact.severity) }}>{impact.event.keyword}</h4>
@@ -280,12 +350,15 @@ export default function CalendarView() {
             )}
 
             {/* Empty Detail Panel */}
-            {selectedDay && (!dailyMap[selectedDay] || dailyMap[selectedDay].length === 0) && (
+            {selectedDateStr && (!eventsByDate[selectedDateStr] || eventsByDate[selectedDateStr].length === 0) && (
                 <div className="animate-fade-in" style={{ marginTop: '32px', padding: '24px', background: 'rgba(0,0,0,0.2)', borderRadius: '16px', textAlign: 'center' }}>
-                    <p style={{ color: 'var(--text-secondary)' }}>No active events impacting {monthName} {selectedDay}.</p>
+                    <p style={{ color: 'var(--text-secondary)' }}>
+                        No active events impacting {new Date(selectedDateStr).toLocaleDateString('default', { month: 'long', day: 'numeric', year: 'numeric' })}.
+                    </p>
                 </div>
             )}
         </div>
     );
 }
+
 
