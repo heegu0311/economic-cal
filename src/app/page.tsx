@@ -1,5 +1,6 @@
 import EventManager from '@/components/EventManager';
 import CalendarView from '@/components/CalendarView';
+import RiskChart from '@/components/RiskChart';
 
 export default function Home() {
   return (
@@ -19,6 +20,7 @@ export default function Home() {
 
       {/* Right Column: Visualization */}
       <div>
+        <RiskChart />
         <CalendarView />
       </div>
 

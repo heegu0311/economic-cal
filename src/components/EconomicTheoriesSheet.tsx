@@ -163,24 +163,25 @@ export default function EconomicTheoriesSheet() {
                 onClick={() => setIsOpen(false)}
             />
 
-            {/* Slide-out Sheet */}
+            {/* Floating Sheet */}
             <div
                 className="glass-panel"
                 style={{
                     position: 'fixed',
-                    top: 0,
-                    right: 0,
-                    height: '100vh',
-                    width: '100%',
+                    top: '24px',
+                    right: '24px',
+                    height: 'calc(100vh - 48px)',
+                    width: 'calc(100% - 48px)',
                     maxWidth: '450px',
-                    transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
-                    transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+                    opacity: isOpen ? 1 : 0,
+                    visibility: isOpen ? 'visible' : 'hidden',
+                    transform: isOpen ? 'translateX(0)' : 'translateX(calc(100% + 24px))',
+                    transition: 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
                     zIndex: 9999,
                     display: 'flex',
                     flexDirection: 'column',
-                    borderRadius: '20px 0 0 20px',
-                    borderRight: 'none',
-                    boxShadow: '-10px 0 30px rgba(0, 0, 0, 0.5)',
+                    borderRadius: '24px',
+                    boxShadow: '0 30px 60px rgba(0, 0, 0, 0.6)',
                     background: 'rgba(23, 27, 33, 0.85)',
                 }}
             >
@@ -190,7 +191,9 @@ export default function EconomicTheoriesSheet() {
                     borderBottom: '1px solid var(--border-color)',
                     display: 'flex',
                     justifyContent: 'space-between',
-                    alignItems: 'flex-start'
+                    alignItems: 'flex-start',
+                    position: 'relative',
+                    zIndex: 10000
                 }}>
                     <div>
                         <h2 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>늘 기억해야 할 경제 이론</h2>
@@ -200,11 +203,7 @@ export default function EconomicTheoriesSheet() {
                     </div>
                     <button
                         type="button"
-                        onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setIsOpen(false);
-                        }}
+                        onClick={() => setIsOpen(false)}
                         style={{
                             padding: '8px',
                             borderRadius: '50%',
@@ -213,9 +212,7 @@ export default function EconomicTheoriesSheet() {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            cursor: 'pointer',
-                            position: 'relative',
-                            zIndex: 10000
+                            cursor: 'pointer'
                         }}
                         onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
                         onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)'}
